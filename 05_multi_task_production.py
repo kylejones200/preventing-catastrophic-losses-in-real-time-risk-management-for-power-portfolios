@@ -18,6 +18,13 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 import matplotlib.pyplot as plt
 
+# Import Tufte plotting utilities
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from tda_utils import setup_tufte_plot, TufteColors
+
+
 # Configuration
 DATA_PATH = Path('../../egrid_all_plants_1996-2023.parquet')
 TARGET_YEAR = 2023
@@ -283,8 +290,6 @@ def visualize_results(mtl_results, single_results, y_test, corr_matrix):
     ax2.set_xticks(x)
     ax2.set_xticklabels(task_names)
     ax2.legend(fontsize=10)
-    ax2.grid(True, alpha=0.3, axis='y')
-    
     # Add improvement percentages
     for i, (bar, imp) in enumerate(zip(bars2, improvements)):
         height = bar.get_height()
@@ -312,8 +317,6 @@ def visualize_results(mtl_results, single_results, y_test, corr_matrix):
         ax.set_ylabel(f'Predicted {task_name} (log)', fontweight='bold', fontsize=10)
         ax.set_title(f'{task_name} Predictions (R²={r2:.3f})', fontweight='bold', fontsize=11)
         ax.legend(fontsize=9)
-        ax.grid(True, alpha=0.3)
-    
     # Row 3: Residual distributions
     for idx, (task, task_name) in enumerate(zip(tasks, task_names)):
         ax = fig.add_subplot(gs[2, idx])
@@ -335,8 +338,6 @@ def visualize_results(mtl_results, single_results, y_test, corr_matrix):
         ax.set_ylabel('Frequency', fontweight='bold', fontsize=10)
         ax.set_title(f'{task_name} Residuals', fontweight='bold', fontsize=11)
         ax.legend(fontsize=9)
-        ax.grid(True, alpha=0.3, axis='y')
-    
     plt.suptitle(f'Multi-Task Learning: Simultaneous Prediction of Three Pollutants',
                 fontsize=16, fontweight='bold', y=0.995)
     
