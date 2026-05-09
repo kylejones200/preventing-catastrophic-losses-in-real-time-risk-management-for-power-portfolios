@@ -8,6 +8,12 @@ import pandas as pd
 import numpy as np
 import warnings
 from pathlib import Path
+import logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
 warnings.filterwarnings('ignore')
 
 import tensorflow as tf
@@ -35,7 +41,7 @@ BATCH_SIZE = 64
 
 def load_and_prepare_data(year):
     """Load and prepare features for multi-task learning"""
-    print(f"Loading {year} data...")
+    logger.info(f"Loading {year} data...")
     plants = pd.read_parquet(DATA_PATH)
     df = plants[plants['data_year'] == year].copy()
     
@@ -64,7 +70,7 @@ def load_and_prepare_data(year):
     df['log_nox'] = np.log1p(nox)
     df['log_so2'] = np.log1p(so2)
     
-    print(f"Loaded {len(df):,} plants")
+    logger.info(f"Loaded {len(df):,} plants")
     return df
 
 def build_mtl_model(input_dim, architecture='hard_sharing'):
@@ -129,7 +135,7 @@ def build_single_task_model(input_dim):
 
 def train_mtl_model(X_train, X_test, y_train, y_test):
     """Train multi-task learning model"""
-    print("\n[1/2] Training Multi-Task Learning Model...")
+    logger.info("\n[1/2] Training Multi-Task Learning Model...")
     
     input_dim = X_train.shape[1]
     model = build_mtl_model(input_dim)
@@ -174,10 +180,10 @@ def train_mtl_model(X_train, X_test, y_train, y_test):
     mae_nox = mean_absolute_error(y_test['nox'], y_pred_nox)
     mae_so2 = mean_absolute_error(y_test['so2'], y_pred_so2)
     
-    print(f"  CO2 MAE: {mae_co2:.4f}")
-    print(f"  NOx MAE: {mae_nox:.4f}")
-    print(f"  SO2 MAE: {mae_so2:.4f}")
-    print(f"  Average MAE: {(mae_co2 + mae_nox + mae_so2)/3:.4f}")
+    logger.info(f"  CO2 MAE: {mae_co2:.4f}")
+    logger.info(f"  NOx MAE: {mae_nox:.4f}")
+    logger.info(f"  SO2 MAE: {mae_so2:.4f}")
+    logger.info(f"  Average MAE: {(mae_co2 + mae_nox + mae_so2)/3:.4f}")
     
     return {
         'model': model,
@@ -196,13 +202,13 @@ def train_mtl_model(X_train, X_test, y_train, y_test):
 
 def train_single_task_models(X_train, X_test, y_train, y_test):
     """Train three separate single-task models"""
-    print("\n[2/2] Training Single-Task Baseline Models...")
+    logger.info("\n[2/2] Training Single-Task Baseline Models...")
     
     input_dim = X_train.shape[1]
     results = {}
     
     for task in ['co2', 'nox', 'so2']:
-        print(f"  Training {task.upper()} model...")
+        logger.info(f"  Training {task.upper()} model...")
         
         model = build_single_task_model(input_dim)
         
@@ -218,7 +224,7 @@ def train_single_task_models(X_train, X_test, y_train, y_test):
         y_pred = model.predict(X_test, verbose=0).flatten()
         mae = mean_absolute_error(y_test[task], y_pred)
         
-        print(f"    MAE: {mae:.4f}")
+        logger.info(f"    MAE: {mae:.4f}")
         
         results[task] = {
             'model': model,
@@ -227,23 +233,23 @@ def train_single_task_models(X_train, X_test, y_train, y_test):
         }
     
     avg_mae = np.mean([results[task]['mae'] for task in ['co2', 'nox', 'so2']])
-    print(f"  Average MAE: {avg_mae:.4f}")
+    logger.info(f"  Average MAE: {avg_mae:.4f}")
     
     return results
 
 def analyze_correlations(df, targets):
     """Analyze target correlations"""
-    print("\nTARGET CORRELATIONS")
-    print("=" * 80)
+    logger.info("\nTARGET CORRELATIONS")
+    logger.info("=" * 80)
     
     corr_matrix = df[targets].corr()
-    print(corr_matrix.to_string())
+    logger.info(corr_matrix.to_string())
     
     return corr_matrix
 
 def visualize_results(mtl_results, single_results, y_test, corr_matrix):
     """Create comprehensive visualization"""
-    print("\nGenerating visualizations...")
+    logger.info("\nGenerating visualizations...")
     
     fig = plt.figure(figsize=(18, 12))
     gs = fig.add_gridspec(3, 3, hspace=0.3, wspace=0.3)
@@ -342,24 +348,24 @@ def visualize_results(mtl_results, single_results, y_test, corr_matrix):
                 fontsize=16, fontweight='bold', y=0.995)
     
     plt.savefig('05_multi_task_results.png', dpi=300, bbox_inches='tight')
-    print("  Saved: 05_multi_task_results.png")
+    logger.info("  Saved: 05_multi_task_results.png")
 
 def export_model(model, scaler, output_path='mtl_emissions_model.h5'):
     """Export trained model"""
     model.save(output_path)
-    print(f"\nExported model to: {output_path}")
+    logger.info(f"\nExported model to: {output_path}")
     
     # Save scaler separately
     import joblib
     scaler_path = output_path.replace('.h5', '_scaler.pkl')
     joblib.dump(scaler, scaler_path)
-    print(f"Exported scaler to: {scaler_path}")
+    logger.info(f"Exported scaler to: {scaler_path}")
 
 def main():
     """Main execution"""
-    print("=" * 80)
-    print("MULTI-TASK LEARNING - PRODUCTION RUN")
-    print("=" * 80)
+    logger.info("=" * 80)
+    logger.info("MULTI-TASK LEARNING - PRODUCTION RUN")
+    logger.info("=" * 80)
     
     # Load data
     df = load_and_prepare_data(TARGET_YEAR)
@@ -372,7 +378,7 @@ def main():
     # Filter complete cases
     data = df[feature_cols + target_cols].dropna()
     
-    print(f"\nTraining on {len(data):,} plants with complete data")
+    logger.info(f"\nTraining on {len(data):,} plants with complete data")
     
     X = data[feature_cols]
     y = {
@@ -403,7 +409,7 @@ def main():
     X_train_scaled = scaler.fit_transform(X_train)
     X_test_scaled = scaler.transform(X_test)
     
-    print(f"Train: {len(X_train):,} | Test: {len(X_test):,}")
+    logger.info(f"Train: {len(X_train):,} | Test: {len(X_test):,}")
     
     # Train models
     mtl_results = train_mtl_model(X_train_scaled, X_test_scaled, y_train, y_test)
@@ -416,30 +422,30 @@ def main():
     export_model(mtl_results['model'], scaler)
     
     # Summary
-    print("\n" + "=" * 80)
-    print("RESULTS SUMMARY")
-    print("=" * 80)
-    print(f"{'Task':<10} {'Single-Task MAE':<20} {'MTL MAE':<20} {'Improvement'}")
-    print("-" * 80)
+    logger.info("\n" + "=" * 80)
+    logger.info("RESULTS SUMMARY")
+    logger.info("=" * 80)
+    logger.info(f"{'Task':<10} {'Single-Task MAE':<20} {'MTL MAE':<20} {'Improvement'}")
+    logger.info("-" * 80)
     
     for task, name in [('co2', 'CO₂'), ('nox', 'NOx'), ('so2', 'SO₂')]:
         single_mae = single_results[task]['mae']
         mtl_mae = mtl_results['mae'][task]
         improvement = (single_mae - mtl_mae) / single_mae * 100
         
-        print(f"{name:<10} {single_mae:<20.4f} {mtl_mae:<20.4f} {improvement:+.1f}%")
+        logger.info(f"{name:<10} {single_mae:<20.4f} {mtl_mae:<20.4f} {improvement:+.1f}%")
     
     # Average improvement
     avg_single = np.mean([single_results[t]['mae'] for t in ['co2', 'nox', 'so2']])
     avg_mtl = np.mean([mtl_results['mae'][t] for t in ['co2', 'nox', 'so2']])
     avg_improvement = (avg_single - avg_mtl) / avg_single * 100
     
-    print("-" * 80)
-    print(f"{'Average':<10} {avg_single:<20.4f} {avg_mtl:<20.4f} {avg_improvement:+.1f}%")
+    logger.info("-" * 80)
+    logger.info(f"{'Average':<10} {avg_single:<20.4f} {avg_mtl:<20.4f} {avg_improvement:+.1f}%")
     
-    print("\n" + "=" * 80)
-    print("✓ Complete!")
-    print("=" * 80)
+    logger.info("\n" + "=" * 80)
+    logger.info("✓ Complete!")
+    logger.info("=" * 80)
     
     return {
         'mtl': mtl_results,
