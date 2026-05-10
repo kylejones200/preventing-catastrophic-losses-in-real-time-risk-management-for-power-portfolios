@@ -247,107 +247,108 @@ def analyze_correlations(df, targets):
     
     return corr_matrix
 
-def visualize_results(mtl_results, single_results, y_test, corr_matrix):
+def visualize_results(mtl_results, single_results, y_test, corr_matrix, plot: bool = False):
     """Create comprehensive visualization"""
     logger.info("\nGenerating visualizations...")
     
-    fig = plt.figure(figsize=(18, 12))
-    gs = fig.add_gridspec(3, 3, hspace=0.3, wspace=0.3)
+    if plot:
+        fig = plt.figure(figsize=(18, 12))
+        gs = fig.add_gridspec(3, 3, hspace=0.3, wspace=0.3)
     
-    tasks = ['co2', 'nox', 'so2']
-    task_names = ['CO₂', 'NOx', 'SO₂']
+        tasks = ['co2', 'nox', 'so2']
+        task_names = ['CO₂', 'NOx', 'SO₂']
     
     # Row 1: Correlation heatmap and performance comparison
-    ax1 = fig.add_subplot(gs[0, 0])
-    im = ax1.imshow(corr_matrix, cmap='RdYlGn', vmin=-1, vmax=1, aspect='auto')
-    ax1.set_xticks(range(3))
-    ax1.set_yticks(range(3))
-    ax1.set_xticklabels(task_names, fontweight='bold')
-    ax1.set_yticklabels(task_names, fontweight='bold')
+        ax1 = fig.add_subplot(gs[0, 0])
+        im = ax1.imshow(corr_matrix, cmap='RdYlGn', vmin=-1, vmax=1, aspect='auto')
+        ax1.set_xticks(range(3))
+        ax1.set_yticks(range(3))
+        ax1.set_xticklabels(task_names, fontweight='bold')
+        ax1.set_yticklabels(task_names, fontweight='bold')
     
-    for i in range(3):
-        for j in range(3):
-            text = ax1.text(j, i, f'{corr_matrix.iloc[i, j]:.2f}',
-                           ha="center", va="center", color="black", 
-                           fontsize=12, fontweight='bold')
+        for i in range(3):
+            for j in range(3):
+                text = ax1.text(j, i, f'{corr_matrix.iloc[i, j]:.2f}',
+                               ha="center", va="center", color="black", 
+                               fontsize=12, fontweight='bold')
     
-    ax1.set_title('Pollutant Correlations', fontsize=12, fontweight='bold')
-    plt.colorbar(im, ax=ax1, label='Correlation')
+        ax1.set_title('Pollutant Correlations', fontsize=12, fontweight='bold')
+        plt.colorbar(im, ax=ax1, label='Correlation')
     
     # Performance comparison
-    ax2 = fig.add_subplot(gs[0, 1:])
+        ax2 = fig.add_subplot(gs[0, 1:])
     
-    mtl_maes = [mtl_results['mae'][task] for task in tasks]
-    single_maes = [single_results[task]['mae'] for task in tasks]
-    improvements = [(single_maes[i] - mtl_maes[i]) / single_maes[i] * 100 
-                   for i in range(len(tasks))]
+        mtl_maes = [mtl_results['mae'][task] for task in tasks]
+        single_maes = [single_results[task]['mae'] for task in tasks]
+        improvements = [(single_maes[i] - mtl_maes[i]) / single_maes[i] * 100 
+                       for i in range(len(tasks))]
     
-    x = np.arange(len(task_names))
-    width = 0.35
+        x = np.arange(len(task_names))
+        width = 0.35
     
-    bars1 = ax2.bar(x - width/2, single_maes, width, label='Single-Task', 
-                   color='#e74c3c', alpha=0.8, edgecolor='black', linewidth=1.5)
-    bars2 = ax2.bar(x + width/2, mtl_maes, width, label='Multi-Task', 
-                   color='#2ecc71', alpha=0.8, edgecolor='black', linewidth=1.5)
+        bars1 = ax2.bar(x - width/2, single_maes, width, label='Single-Task', 
+                       color='#e74c3c', alpha=0.8, edgecolor='black', linewidth=1.5)
+        bars2 = ax2.bar(x + width/2, mtl_maes, width, label='Multi-Task', 
+                       color='#2ecc71', alpha=0.8, edgecolor='black', linewidth=1.5)
     
-    ax2.set_xlabel('Pollutant', fontweight='bold', fontsize=11)
-    ax2.set_ylabel('Mean Absolute Error', fontweight='bold', fontsize=11)
-    ax2.set_title('MTL vs Single-Task Performance', fontweight='bold', fontsize=12)
-    ax2.set_xticks(x)
-    ax2.set_xticklabels(task_names)
-    ax2.legend(fontsize=10)
+        ax2.set_xlabel('Pollutant', fontweight='bold', fontsize=11)
+        ax2.set_ylabel('Mean Absolute Error', fontweight='bold', fontsize=11)
+        ax2.set_title('MTL vs Single-Task Performance', fontweight='bold', fontsize=12)
+        ax2.set_xticks(x)
+        ax2.set_xticklabels(task_names)
+        ax2.legend(fontsize=10)
     # Add improvement percentages
-    for i, (bar, imp) in enumerate(zip(bars2, improvements)):
-        height = bar.get_height()
-        ax2.text(bar.get_x() + bar.get_width()/2., height,
-                f'+{imp:.1f}%',
-                ha='center', va='bottom', fontsize=10, fontweight='bold', color='green')
+        for i, (bar, imp) in enumerate(zip(bars2, improvements)):
+            height = bar.get_height()
+            ax2.text(bar.get_x() + bar.get_width()/2., height,
+                    f'+{imp:.1f}%',
+                    ha='center', va='bottom', fontsize=10, fontweight='bold', color='green')
     
     # Row 2: Prediction scatter plots
-    for idx, (task, task_name) in enumerate(zip(tasks, task_names)):
-        ax = fig.add_subplot(gs[1, idx])
+        for idx, (task, task_name) in enumerate(zip(tasks, task_names)):
+            ax = fig.add_subplot(gs[1, idx])
         
-        mtl_pred = mtl_results['predictions'][task]
-        actual = y_test[task]
+            mtl_pred = mtl_results['predictions'][task]
+            actual = y_test[task]
         
-        ax.scatter(actual, mtl_pred, alpha=0.5, s=30, edgecolors='none', color='#3498db')
+            ax.scatter(actual, mtl_pred, alpha=0.5, s=30, edgecolors='none', color='#3498db')
         
         # Perfect prediction line
-        min_val = min(actual.min(), mtl_pred.min())
-        max_val = max(actual.max(), mtl_pred.max())
-        ax.plot([min_val, max_val], [min_val, max_val], 'r--', linewidth=2, label='Perfect')
+            min_val = min(actual.min(), mtl_pred.min())
+            max_val = max(actual.max(), mtl_pred.max())
+            ax.plot([min_val, max_val], [min_val, max_val], 'r--', linewidth=2, label='Perfect')
         
-        r2 = r2_score(actual, mtl_pred)
+            r2 = r2_score(actual, mtl_pred)
         
-        ax.set_xlabel(f'Actual {task_name} (log)', fontweight='bold', fontsize=10)
-        ax.set_ylabel(f'Predicted {task_name} (log)', fontweight='bold', fontsize=10)
-        ax.set_title(f'{task_name} Predictions (R²={r2:.3f})', fontweight='bold', fontsize=11)
-        ax.legend(fontsize=9)
+            ax.set_xlabel(f'Actual {task_name} (log)', fontweight='bold', fontsize=10)
+            ax.set_ylabel(f'Predicted {task_name} (log)', fontweight='bold', fontsize=10)
+            ax.set_title(f'{task_name} Predictions (R²={r2:.3f})', fontweight='bold', fontsize=11)
+            ax.legend(fontsize=9)
     # Row 3: Residual distributions
-    for idx, (task, task_name) in enumerate(zip(tasks, task_names)):
-        ax = fig.add_subplot(gs[2, idx])
+        for idx, (task, task_name) in enumerate(zip(tasks, task_names)):
+            ax = fig.add_subplot(gs[2, idx])
         
-        mtl_pred = mtl_results['predictions'][task]
-        single_pred = single_results[task]['predictions']
-        actual = y_test[task]
+            mtl_pred = mtl_results['predictions'][task]
+            single_pred = single_results[task]['predictions']
+            actual = y_test[task]
         
-        mtl_residuals = actual - mtl_pred
-        single_residuals = actual - single_pred
+            mtl_residuals = actual - mtl_pred
+            single_residuals = actual - single_pred
         
-        ax.hist(single_residuals, bins=30, alpha=0.7, color='#e74c3c', 
-               label='Single-Task', edgecolor='black')
-        ax.hist(mtl_residuals, bins=30, alpha=0.7, color='#2ecc71', 
-               label='Multi-Task', edgecolor='black')
+            ax.hist(single_residuals, bins=30, alpha=0.7, color='#e74c3c', 
+                   label='Single-Task', edgecolor='black')
+            ax.hist(mtl_residuals, bins=30, alpha=0.7, color='#2ecc71', 
+                   label='Multi-Task', edgecolor='black')
         
-        ax.axvline(0, color='black', linestyle='--', linewidth=2)
-        ax.set_xlabel('Residual', fontweight='bold', fontsize=10)
-        ax.set_ylabel('Frequency', fontweight='bold', fontsize=10)
-        ax.set_title(f'{task_name} Residuals', fontweight='bold', fontsize=11)
-        ax.legend(fontsize=9)
-    plt.suptitle(f'Multi-Task Learning: Simultaneous Prediction of Three Pollutants',
-                fontsize=16, fontweight='bold', y=0.995)
+            ax.axvline(0, color='black', linestyle='--', linewidth=2)
+            ax.set_xlabel('Residual', fontweight='bold', fontsize=10)
+            ax.set_ylabel('Frequency', fontweight='bold', fontsize=10)
+            ax.set_title(f'{task_name} Residuals', fontweight='bold', fontsize=11)
+            ax.legend(fontsize=9)
+        plt.suptitle(f'Multi-Task Learning: Simultaneous Prediction of Three Pollutants',
+                    fontsize=16, fontweight='bold', y=0.995)
     
-    plt.savefig('05_multi_task_results.png', dpi=300, bbox_inches='tight')
+        plt.savefig('05_multi_task_results.png', dpi=300, bbox_inches='tight')
     logger.info("  Saved: 05_multi_task_results.png")
 
 def export_model(model, scaler, output_path='mtl_emissions_model.h5'):
