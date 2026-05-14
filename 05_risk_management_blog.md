@@ -11,11 +11,11 @@ In power trading, where prices can move 500% in hours and correlations break dow
 Every power trader faces an inescapable reality: extreme events will occur. Transmission lines will fail. Heat waves will spike demand. Generators will experience unplanned outages. The question isn't whether these events happen, but whether your portfolio survives them.
 
 Effective risk management serves multiple critical functions:
-- **Prevents Catastrophic Losses**: Limits exposure to tail events that could eliminate years of gains
-- **Enables Optimal Position Sizing**: Quantifies risk to determine appropriate position sizes
-- **Identifies Hidden Correlations**: Reveals concentration risks that aren't obvious from notional exposures
-- **Facilitates Rapid Response**: Provides real-time visibility into portfolio risk evolution
-- **Supports Regulatory Compliance**: Documents risk controls for regulators and stakeholders
+- Prevents Catastrophic Losses: Limits exposure to tail events that could eliminate years of gains
+- Enables Optimal Position Sizing: Quantifies risk to determine appropriate position sizes
+- Identifies Hidden Correlations: Reveals concentration risks that aren't obvious from notional exposures
+- Facilitates Rapid Response: Provides real-time visibility into portfolio risk evolution
+- Supports Regulatory Compliance: Documents risk controls for regulators and stakeholders
 
 ![Risk Management Framework](05_risk_management_main.png)
 
@@ -27,11 +27,11 @@ VaR answers a simple question: "What is the maximum loss I can expect with X% co
 
 The VaR calculation framework supports three methodologies, each with distinct strengths and weaknesses:
 
-**Parametric VaR** assumes returns follow a normal distribution. It calculates portfolio returns from historical data, computes mean and standard deviation, then applies the normal distribution's percentile (z-score) to estimate maximum loss at specified confidence. Fast and mathematically elegant, but dangerous in power markets where price distributions have fat tails—extreme moves happen far more often than normal distributions predict.
+Parametric VaR assumes returns follow a normal distribution. It calculates portfolio returns from historical data, computes mean and standard deviation, then applies the normal distribution's percentile (z-score) to estimate maximum loss at specified confidence. Fast and mathematically elegant, but dangerous in power markets where price distributions have fat tails—extreme moves happen far more often than normal distributions predict.
 
-**Historical VaR** uses actual historical returns to estimate risk. It simulates portfolio P&L using historical price movements, then selects the appropriate percentile (e.g., 5th percentile for 95% confidence). This captures actual market behavior including jumps, gaps, and fat tails. However, it assumes future will resemble past—unprecedented events (the "black swans") don't appear in historical data until after they happen.
+Historical VaR uses actual historical returns to estimate risk. It simulates portfolio P&L using historical price movements, then selects the appropriate percentile (e.g., 5th percentile for 95% confidence). This captures actual market behavior including jumps, gaps, and fat tails. However, it assumes future will resemble past—unprecedented events (the "black swans") don't appear in historical data until after they happen.
 
-**Monte Carlo VaR** generates thousands of simulated scenarios from the return distribution (mean, covariance matrix estimated from history). Each scenario produces a portfolio P&L outcome; the appropriate percentile becomes VaR. This method captures complexity and portfolio effects (correlations, nonlinearities), but accuracy depends critically on correct correlation assumptions—which often break down during crises.
+Monte Carlo VaR generates thousands of simulated scenarios from the return distribution (mean, covariance matrix estimated from history). Each scenario produces a portfolio P&L outcome; the appropriate percentile becomes VaR. This method captures complexity and portfolio effects (correlations, nonlinearities), but accuracy depends critically on correct correlation assumptions—which often break down during crises.
 
 Example calculations for a power portfolio (500 MW power position, -200 MMBtu gas position, +1,000 tons coal position) with 95% confidence and 1-day horizon might show:
 
@@ -51,15 +51,15 @@ VaR tells you normal losses under typical market conditions. Stress testing reve
 
 Stress scenarios should include:
 
-**Historical events**: "Heat Wave" (150% power spike, 80% gas spike, 25% coal spike), "Polar Vortex" (200% power spike, 300% gas spike), "Gas Supply Disruption" (250% gas spike forcing coal substitution).
+Historical events: "Heat Wave" (150% power spike, 80% gas spike, 25% coal spike), "Polar Vortex" (200% power spike, 300% gas spike), "Gas Supply Disruption" (250% gas spike forcing coal substitution).
 
-**Hypothetical shocks**: "Transmission Failure" (180% power spike), "Renewable Lull" (low wind/solar forces thermal backup), "Market Volatility Spike" (extreme moves across all commodities).
+Hypothetical shocks: "Transmission Failure" (180% power spike), "Renewable Lull" (low wind/solar forces thermal backup), "Market Volatility Spike" (extreme moves across all commodities).
 
-**Tail events**: "2021 Texas Storm Replay" (1,000% power spike, 600% gas spike)—the scenario everyone says "can't happen again" but absolutely can.
+Tail events: "2021 Texas Storm Replay" (1,000% power spike, 600% gas spike)—the scenario everyone says "can't happen again" but absolutely can.
 
 For each scenario, the system applies price shocks to every position, calculates P&L impacts, and classifies severity: CRITICAL (>15% of portfolio), HIGH (>10%), MODERATE (<10%). The Texas Storm scenario might produce a $450,000 loss (63% of portfolio)—clearly catastrophic. Even if VaR says daily risk is $15k, this stress test reveals the portfolio could lose everything in a single extreme event.
 
-**The critical insight**: If a plausible scenario bankrupts your portfolio, reduce exposure regardless of what VaR says. Position limits should be set by stress tests, not just VaR. Professional traders maintain "stress VaR"—the maximum loss across all stress scenarios—below capital thresholds that would trigger liquidation.
+The critical insight: If a plausible scenario bankrupts your portfolio, reduce exposure regardless of what VaR says. Position limits should be set by stress tests, not just VaR. Professional traders maintain "stress VaR"—the maximum loss across all stress scenarios—below capital thresholds that would trigger liquidation.
 
 (See Complete Implementation section for stress testing code)
 
@@ -69,11 +69,11 @@ For each scenario, the system applies price shocks to every position, calculates
 
 Diversification only works if positions aren't secretly correlated. During the 2008 financial crisis, traders holding "diversified" portfolios discovered all their assets moved together—diversification disappeared exactly when needed most.
 
-**Concentration analysis** quantifies exposure concentration using the Herfindahl index: sum of squared exposure shares. Score of 1.0 means 100% in one asset (maximum concentration). Score of 0.33 means equal weight in three assets. Scores above 0.3 indicate dangerous concentration—a single position dominates portfolio risk.
+Concentration analysis quantifies exposure concentration using the Herfindahl index: sum of squared exposure shares. Score of 1.0 means 100% in one asset (maximum concentration). Score of 0.33 means equal weight in three assets. Scores above 0.3 indicate dangerous concentration—a single position dominates portfolio risk.
 
-**Effective positions** accounting for correlations reveals true diversification. A portfolio might hold 10 positions, but if they're all highly correlated, effective positions might be only 3—meaning diversification benefit is minimal. Calculate via: 1 / (weights^T × correlation_matrix × weights). During normal markets, 10 positions might provide 7 effective positions (decent diversification). During crises, when correlations spike toward 1.0, effective positions drop to 2-3—diversification collapses.
+Effective positions accounting for correlations reveals true diversification. A portfolio might hold 10 positions, but if they're all highly correlated, effective positions might be only 3—meaning diversification benefit is minimal. Calculate via: 1 / (weights^T × correlation_matrix × weights). During normal markets, 10 positions might provide 7 effective positions (decent diversification). During crises, when correlations spike toward 1.0, effective positions drop to 2-3—diversification collapses.
 
-**Net-to-gross ratio** reveals hedge effectiveness. Gross exposure of $1M with net exposure of $50k (5% net/gross) suggests well-hedged portfolio. Net/gross of 80% suggests directional bet with minimal hedging—high risk.
+Net-to-gross ratio reveals hedge effectiveness. Gross exposure of $1M with net exposure of $50k (5% net/gross) suggests well-hedged portfolio. Net/gross of 80% suggests directional bet with minimal hedging—high risk.
 
 Example analysis for a power/gas/coal portfolio shows:
 - Gross exposure: $117,500
@@ -83,7 +83,7 @@ Example analysis for a power/gas/coal portfolio shows:
 - Effective positions: 2.3 out of 3 (limited diversification benefit)
 - Largest exposure: Power spot at 44% of portfolio (dangerous concentration)
 
-**Action**: Diversify power exposure across multiple hubs, add options for convexity, consider spread trades to reduce net directional exposure.
+Action: Diversify power exposure across multiple hubs, add options for convexity, consider spread trades to reduce net directional exposure.
 
 (See Complete Implementation section for concentration analysis code)
 
@@ -95,18 +95,18 @@ Professional risk management requires continuous monitoring, not daily batch rep
 
 The risk dashboard calculates multiple metrics every 15-30 minutes:
 
-**VaR at multiple confidence levels**: 95% VaR ($15k) and 99% VaR ($35k) bracket normal vs extreme daily losses. Track utilization against limits: if 99% VaR limit is $50k and current is $48k, portfolio is 96% utilized—dangerously close to requiring forced deleveraging.
+VaR at multiple confidence levels: 95% VaR ($15k) and 99% VaR ($35k) bracket normal vs extreme daily losses. Track utilization against limits: if 99% VaR limit is $50k and current is $48k, portfolio is 96% utilized—dangerously close to requiring forced deleveraging.
 
-**Concentration metrics**: Gross exposure, net exposure, concentration score, effective positions. Rising concentration score signals increasing risk from position growth in single assets.
+Concentration metrics: Gross exposure, net exposure, concentration score, effective positions. Rising concentration score signals increasing risk from position growth in single assets.
 
-**Limit utilization**: Each risk metric displays as percentage of limit. VaR at 60% of limit = room to add positions. VaR at 95% of limit = stop adding risk, consider reducing. VaR at 105% of limit = CRITICAL alert, immediate deleveraging required.
+Limit utilization: Each risk metric displays as percentage of limit. VaR at 60% of limit = room to add positions. VaR at 95% of limit = stop adding risk, consider reducing. VaR at 105% of limit = CRITICAL alert, immediate deleveraging required.
 
-**Automated alerts** trigger when metrics breach thresholds:
+Automated alerts trigger when metrics breach thresholds:
 - HIGH severity: VaR 95% exceeds limit → Reduce positions or add hedges
 - CRITICAL severity: VaR 99% exceeds limit → Immediately reduce exposures, no new trades
 - MEDIUM severity: Single asset >40% of portfolio → Diversify into additional assets
 
-**Risk status**: NORMAL (all metrics within limits), MEDIUM (minor breaches), HIGH (significant breaches), CRITICAL (must act immediately). Trading desks use traffic light displays: green = NORMAL, yellow = MEDIUM, orange = HIGH, red = CRITICAL.
+Risk status: NORMAL (all metrics within limits), MEDIUM (minor breaches), HIGH (significant breaches), CRITICAL (must act immediately). Trading desks use traffic light displays: green = NORMAL, yellow = MEDIUM, orange = HIGH, red = CRITICAL.
 
 Real-time monitoring enables immediate response. If a sudden market move pushes VaR from $15k to $55k (exceeding $50k limit), alerts fire within minutes. Traders can sell down positions before small losses cascade into catastrophic ones. Contrast this with daily batch reporting where breaches might not be discovered until the next morning—potentially after significant losses have occurred.
 
@@ -118,15 +118,15 @@ Real-time monitoring enables immediate response. If a sudden market move pushes 
 
 Professional risk management transforms trading from gambling into calculated risk-taking:
 
-**VaR Is a Starting Point, Not the End**: Calculate VaR using multiple methods (parametric, historical, Monte Carlo), but don't stop there. Stress testing reveals what VaR misses—the tail events that actually cause catastrophic losses.
+VaR Is a Starting Point, Not the End: Calculate VaR using multiple methods (parametric, historical, Monte Carlo), but don't stop there. Stress testing reveals what VaR misses—the tail events that actually cause catastrophic losses.
 
-**Stress Test Against History and Imagination**: If your portfolio can't survive a "Texas Storm Replay," reduce exposure now. Historical worst-cases will happen again. The scenario everyone says "that was a once-in-a-century event" often repeats within a decade.
+Stress Test Against History and Imagination: If your portfolio can't survive a "Texas Storm Replay," reduce exposure now. Historical worst-cases will happen again. The scenario everyone says "that was a once-in-a-century event" often repeats within a decade.
 
-**Correlations Increase in Crises**: Diversification that works in normal markets disappears during crises when you need it most. Size positions assuming correlations will spike to 0.8-0.9 during stress, not the 0.3-0.5 you observe in calm periods.
+Correlations Increase in Crises: Diversification that works in normal markets disappears during crises when you need it most. Size positions assuming correlations will spike to 0.8-0.9 during stress, not the 0.3-0.5 you observe in calm periods.
 
-**Real-Time Monitoring Is Essential**: Risk evolves continuously as markets move. Daily risk reports are obsolete—monitor intraday and respond immediately to breaches. By the time tomorrow's batch report runs, losses may be irreversible.
+Real-Time Monitoring Is Essential: Risk evolves continuously as markets move. Daily risk reports are obsolete—monitor intraday and respond immediately to breaches. By the time tomorrow's batch report runs, losses may be irreversible.
 
-**Limits Must Be Enforced**: Risk limits without enforcement are suggestions. Automated systems that prevent limit breaches protect against human judgment errors during volatile markets when adrenaline and fear cloud rational decision-making.
+Limits Must Be Enforced: Risk limits without enforcement are suggestions. Automated systems that prevent limit breaches protect against human judgment errors during volatile markets when adrenaline and fear cloud rational decision-making.
 
 ![Risk Management Excellence](05_risk_management_excellence.png)
 
