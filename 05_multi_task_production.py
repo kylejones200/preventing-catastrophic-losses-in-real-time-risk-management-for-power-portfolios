@@ -6,7 +6,6 @@ Simultaneously predict CO2, NOx, and SO2 using shared neural network architectur
 
 import pandas as pd
 import numpy as np
-import warnings
 from pathlib import Path
 import logging
 logging.basicConfig(
@@ -14,7 +13,6 @@ logging.basicConfig(
     format='%(asctime)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
-warnings.filterwarnings('ignore')
 
 import tensorflow as tf
 from tensorflow import keras
