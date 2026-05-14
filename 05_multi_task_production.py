@@ -240,7 +240,6 @@ def train_single_task_models(X_train, X_test, y_train, y_test):
 def analyze_correlations(df, targets):
     """Analyze target correlations"""
     logger.info("\nTARGET CORRELATIONS")
-    logger.info("=" * 80)
     
     corr_matrix = df[targets].corr()
     logger.info(corr_matrix.to_string())
@@ -364,9 +363,7 @@ def export_model(model, scaler, output_path='mtl_emissions_model.h5'):
 
 def main():
     """Main execution"""
-    logger.info("=" * 80)
     logger.info("MULTI-TASK LEARNING - PRODUCTION RUN")
-    logger.info("=" * 80)
     
     # Load data
     df = load_and_prepare_data(TARGET_YEAR)
@@ -423,11 +420,8 @@ def main():
     export_model(mtl_results['model'], scaler)
     
     # Summary
-    logger.info("\n" + "=" * 80)
-    logger.info("RESULTS SUMMARY")
-    logger.info("=" * 80)
+    logger.info("=== RESULTS SUMMARY ===")
     logger.info(f"{'Task':<10} {'Single-Task MAE':<20} {'MTL MAE':<20} {'Improvement'}")
-    logger.info("-" * 80)
     
     for task, name in [('co2', 'CO₂'), ('nox', 'NOx'), ('so2', 'SO₂')]:
         single_mae = single_results[task]['mae']
@@ -441,12 +435,9 @@ def main():
     avg_mtl = np.mean([mtl_results['mae'][t] for t in ['co2', 'nox', 'so2']])
     avg_improvement = (avg_single - avg_mtl) / avg_single * 100
     
-    logger.info("-" * 80)
     logger.info(f"{'Average':<10} {avg_single:<20.4f} {avg_mtl:<20.4f} {avg_improvement:+.1f}%")
     
-    logger.info("\n" + "=" * 80)
-    logger.info("✓ Complete!")
-    logger.info("=" * 80)
+    logger.info("=== ✓ Complete! ===")
     
     return {
         'mtl': mtl_results,
