@@ -14,15 +14,13 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras import layers
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
-from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+from sklearn.metrics import mean_absolute_error, r2_score
 import matplotlib.pyplot as plt
 
-import sys
 # Configuration
 DATA_PATH = Path('../../egrid_all_plants_1996-2023.parquet')
 TARGET_YEAR = 2023
@@ -259,7 +257,7 @@ def visualize_results(mtl_results, single_results, y_test, corr_matrix, plot: bo
     
         for i in range(3):
             for j in range(3):
-                text = ax1.text(j, i, f'{corr_matrix.iloc[i, j]:.2f}',
+                ax1.text(j, i, f'{corr_matrix.iloc[i, j]:.2f}',
                                ha="center", va="center", color="black", 
                                fontsize=12, fontweight='bold')
     
@@ -277,7 +275,7 @@ def visualize_results(mtl_results, single_results, y_test, corr_matrix, plot: bo
         x = np.arange(len(task_names))
         width = 0.35
     
-        bars1 = ax2.bar(x - width/2, single_maes, width, label='Single-Task', 
+        ax2.bar(x - width/2, single_maes, width, label='Single-Task', 
                        color='#e74c3c', alpha=0.8, edgecolor='black', linewidth=1.5)
         bars2 = ax2.bar(x + width/2, mtl_maes, width, label='Multi-Task', 
                        color='#2ecc71', alpha=0.8, edgecolor='black', linewidth=1.5)
@@ -336,7 +334,7 @@ def visualize_results(mtl_results, single_results, y_test, corr_matrix, plot: bo
             ax.set_ylabel('Frequency', fontweight='bold', fontsize=10)
             ax.set_title(f'{task_name} Residuals', fontweight='bold', fontsize=11)
             ax.legend(fontsize=9)
-        plt.suptitle(f'Multi-Task Learning: Simultaneous Prediction of Three Pollutants',
+        plt.suptitle('Multi-Task Learning: Simultaneous Prediction of Three Pollutants',
                     fontsize=16, fontweight='bold', y=0.995)
     
         plt.savefig('05_multi_task_results.png', dpi=300, bbox_inches='tight')
