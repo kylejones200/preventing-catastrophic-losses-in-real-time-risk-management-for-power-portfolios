@@ -4,6 +4,9 @@ Production Multi-Task Learning for Emissions Prediction
 Simultaneously predict CO2, NOx, and SO2 using shared neural network architecture
 """
 
+import torch
+import torch.nn as nn
+from torch.utils.data import DataLoader, TensorDataset
 import logging
 from pathlib import Path
 
@@ -19,8 +22,6 @@ import matplotlib.pyplot as plt
 from sklearn.metrics import mean_absolute_error, r2_score
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
-from tensorflow import keras
-from tensorflow.keras import layers
 
 # Configuration
 DATA_PATH = Path("../../egrid_all_plants_1996-2023.parquet")
@@ -30,6 +31,71 @@ RANDOM_STATE = 42
 EPOCHS = 100
 BATCH_SIZE = 64
 
+
+class _MLPForecaster(nn.Module):
+    """MLP forecaster (auto-generated PyTorch replacement for Keras Sequential)."""
+    def __init__(self, n_features: int, output_size: int = 1):
+        super().__init__()
+        self.net = nn.Sequential(
+            nn.Flatten(),
+            nn.LazyLinear(128), nn.ReLU(),
+            nn.Linear(128, 64), nn.ReLU(),
+            nn.Linear(64, 32), nn.ReLU(),
+            nn.Linear(32, 16), nn.ReLU(),
+            nn.Linear(16, 1), nn.ReLU(),
+            nn.Linear(1, 16), nn.ReLU(),
+            nn.Linear(16, 1), nn.ReLU(),
+            nn.Linear(1, 16), nn.ReLU(),
+            nn.Linear(16, 1), nn.ReLU(),
+            nn.Linear(1, 128), nn.ReLU(),
+            nn.Linear(128, 64), nn.ReLU(),
+            nn.Linear(64, 32), nn.ReLU(),
+            nn.Linear(32, 16), nn.ReLU(),
+            nn.Linear(16, 1),
+        )
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return self.net(x)
+
+def _train_torch(model: nn.Module, X_train, y_train, *,
+                 epochs: int = 50, batch_size: int = 32,
+                 lr: float = 0.001, validation_split: float = 0.2,
+                 patience: int = 15) -> nn.Module:
+    """Standard training loop replacing  + model.fit()."""
+    X_t = torch.FloatTensor(X_train)
+    y_t = torch.FloatTensor(y_train)
+    if y_t.dim() == 1:
+        y_t = y_t.unsqueeze(1)
+    n_val = max(1, int(len(X_t) * validation_split))
+    X_val, y_val = X_t[-n_val:], y_t[-n_val:]
+    X_tr, y_tr = X_t[:-n_val], y_t[:-n_val]
+    loader = DataLoader(TensorDataset(X_tr, y_tr), batch_size=batch_size, shuffle=True)
+    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
+    criterion = nn.MSELoss()
+    best, wait = float("inf"), 0
+    for _ in range(epochs):
+        model.train()
+        for xb, yb in loader:
+            optimizer.zero_grad()
+            criterion(model(xb), yb).backward()
+            optimizer.step()
+        model.eval()
+        with torch.no_grad():
+            val_loss = criterion(model(X_val), y_val).item()
+        if val_loss < best:
+            best, wait = val_loss, 0
+        else:
+            wait += 1
+            if wait >= patience:
+                break
+    return model
+
+
+def _predict_torch(model: nn.Module, X_test) -> "np.ndarray":
+    """Replace model.predict()."""
+    model.eval()
+    with torch.no_grad():
+        return model(torch.FloatTensor(X_test)).numpy()
 
 def load_and_prepare_data(year):
     """Load and prepare features for multi-task learning"""
@@ -121,8 +187,7 @@ def build_single_task_model(input_dim):
         ]
     )
 
-    model.compile(
-        optimizer=keras.optimizers.Adam(learning_rate=0.001),
+    ,
         loss="mse",
         metrics=["mae"],
     )
@@ -137,34 +202,21 @@ def train_mtl_model(X_train, X_test, y_train, y_test):
     input_dim = X_train.shape[1]
     model = build_mtl_model(input_dim)
 
-    model.compile(
-        optimizer=keras.optimizers.Adam(learning_rate=0.001),
+    ,
         loss={"co2_output": "mse", "nox_output": "mse", "so2_output": "mse"},
         metrics={"co2_output": ["mae"], "nox_output": ["mae"], "so2_output": ["mae"]},
     )
 
     # Train
-    history = model.fit(
-        X_train,
-        {
-            "co2_output": y_train["co2"],
-            "nox_output": y_train["nox"],
-            "so2_output": y_train["so2"],
-        },
-        validation_split=0.2,
-        epochs=EPOCHS,
-        batch_size=BATCH_SIZE,
-        callbacks=[
-            keras.callbacks.EarlyStopping(
-                patience=15, restore_best_weights=True, verbose=0
-            ),
+    history = _train_torch(model, X_train, {
+            "co2_output": y_train["co2"]),
             keras.callbacks.ReduceLROnPlateau(patience=7, factor=0.5, verbose=0),
         ],
         verbose=0,
     )
 
     # Predict
-    y_pred_co2, y_pred_nox, y_pred_so2 = model.predict(X_test, verbose=0)
+    y_pred_co2, y_pred_nox, y_pred_so2 = _predict_torch(model, X_test, verbose=0)
 
     # Evaluate
     mae_co2 = mean_absolute_error(y_test["co2"], y_pred_co2)
@@ -200,21 +252,12 @@ def train_single_task_models(X_train, X_test, y_train, y_test):
 
         model = build_single_task_model(input_dim)
 
-        model.fit(
-            X_train,
-            y_train[task],
-            validation_split=0.2,
-            epochs=EPOCHS,
-            batch_size=BATCH_SIZE,
-            callbacks=[
-                keras.callbacks.EarlyStopping(
-                    patience=15, restore_best_weights=True, verbose=0
-                )
+        _train_torch(model, X_train, y_train[task])
             ],
             verbose=0,
         )
 
-        y_pred = model.predict(X_test, verbose=0).flatten()
+        y_pred = _predict_torch(model, X_test, verbose=0).flatten()
         mae = mean_absolute_error(y_test[task], y_pred)
 
         logger.info(f"    MAE: {mae:.4f}")
