@@ -24,3 +24,14 @@ select = ["E", "F", "I", "UP"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
+
+[build-system]
+requires = ["maturin>=1.7,<2.0"]
+build-backend = "maturin"
+
+# Optional Rust extension — build with:
+#   pip install maturin && maturin develop --release -m rust/py/Cargo.toml
+[tool.maturin]
+manifest-path = "rust/py/Cargo.toml"
+module-name = "preventing_catastrophic_losses_in_real_time_risk_management_for_power_portfolios_rs"
+

@@ -4,8 +4,11 @@ Simultaneously predict CO2, NOx, and SO2 using shared neural network architectur
 """
 
 import logging
+from pathlib import Path
 
-import keras
+import matplotlib
+
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -14,10 +17,15 @@ import torch.nn as nn
 from sklearn.metrics import mean_absolute_error, r2_score
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
-from tensorflow.keras import layers
 from torch.utils.data import DataLoader, TensorDataset
 
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
+
+DATA_PATH = Path(__file__).resolve().parent / "synthetic_plants.parquet"
+TARGET_YEAR = 2020
+TEST_SIZE = 0.2
+RANDOM_STATE = 42
 class _MLPForecaster(nn.Module):
     """MLP forecaster (auto-generated PyTorch replacement for Keras Sequential)."""
 
@@ -114,66 +122,106 @@ def analyze_correlations(df, targets):
     return corr_matrix
 
 
-def build_mtl_model(input_dim, architecture="hard_sharing"):
-    """
-    Build multi-task learning model with hard parameter sharing
-    """
-    inputs = keras.Input(shape=(input_dim,), name="input_features")
-    shared = layers.Dense(128, activation="relu", name="shared_1")(inputs)
-    shared = layers.BatchNormalization()(shared)
-    shared = layers.Dropout(0.3)(shared)
-    shared = layers.Dense(64, activation="relu", name="shared_2")(shared)
-    shared = layers.BatchNormalization()(shared)
-    shared = layers.Dropout(0.3)(shared)
-    shared = layers.Dense(32, activation="relu", name="shared_3")(shared)
-    shared = layers.BatchNormalization()(shared)
-    co2_head = layers.Dense(16, activation="relu", name="co2_head")(shared)
-    co2_output = layers.Dense(1, name="co2_output")(co2_head)
-    nox_head = layers.Dense(16, activation="relu", name="nox_head")(shared)
-    nox_output = layers.Dense(1, name="nox_output")(nox_head)
-    so2_head = layers.Dense(16, activation="relu", name="so2_head")(shared)
-    so2_output = layers.Dense(1, name="so2_output")(so2_head)
-    model = keras.Model(
-        inputs=inputs, outputs=[co2_output, nox_output, so2_output], name="mtl_emissions_predictor"
-    )
-    return model
+class MultiTaskMLP(nn.Module):
+    def __init__(self, input_dim: int):
+        super().__init__()
+        self.shared = nn.Sequential(
+            nn.Linear(input_dim, 128),
+            nn.ReLU(),
+            nn.Dropout(0.3),
+            nn.Linear(128, 64),
+            nn.ReLU(),
+            nn.Dropout(0.3),
+            nn.Linear(64, 32),
+            nn.ReLU(),
+        )
+        self.co2 = nn.Linear(32, 1)
+        self.nox = nn.Linear(32, 1)
+        self.so2 = nn.Linear(32, 1)
+
+    def forward(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        h = self.shared(x)
+        return self.co2(h), self.nox(h), self.so2(h)
 
 
-def build_single_task_model(input_dim):
-    """Build single-task baseline model"""
-    model = keras.Sequential(
-        [
-            keras.Input(shape=(input_dim,)),
-            layers.Dense(128, activation="relu"),
-            layers.BatchNormalization(),
-            layers.Dropout(0.3),
-            layers.Dense(64, activation="relu"),
-            layers.BatchNormalization(),
-            layers.Dropout(0.3),
-            layers.Dense(32, activation="relu"),
-            layers.BatchNormalization(),
-            layers.Dense(16, activation="relu"),
-            layers.Dense(1),
-        ]
-    )
-    return model
+class SingleTaskMLP(nn.Module):
+    def __init__(self, input_dim: int):
+        super().__init__()
+        self.net = nn.Sequential(
+            nn.Linear(input_dim, 128),
+            nn.ReLU(),
+            nn.Dropout(0.3),
+            nn.Linear(128, 64),
+            nn.ReLU(),
+            nn.Linear(64, 1),
+        )
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return self.net(x)
 
 
-def export_model(model, scaler, output_path="mtl_emissions_model.h5"):
-    """Export trained model"""
-    model.save(output_path)
-    logger.info(f"\nExported model to: {output_path}")
+def _train_mtl(model: MultiTaskMLP, X_train, y_train: dict, *, epochs: int = 20) -> None:
+    X_t = torch.FloatTensor(X_train)
+    y_co2 = torch.FloatTensor(y_train["co2"]).unsqueeze(1)
+    y_nox = torch.FloatTensor(y_train["nox"]).unsqueeze(1)
+    y_so2 = torch.FloatTensor(y_train["so2"]).unsqueeze(1)
+    opt = torch.optim.Adam(model.parameters(), lr=1e-3)
+    crit = nn.MSELoss()
+    for _ in range(epochs):
+        model.train()
+        opt.zero_grad()
+        p_co2, p_nox, p_so2 = model(X_t)
+        loss = crit(p_co2, y_co2) + crit(p_nox, y_nox) + crit(p_so2, y_so2)
+        loss.backward()
+        opt.step()
+
+
+def _predict_mtl(model: MultiTaskMLP, X_test) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    model.eval()
+    with torch.no_grad():
+        p_co2, p_nox, p_so2 = model(torch.FloatTensor(X_test))
+    return p_co2.numpy(), p_nox.numpy(), p_so2.numpy()
+
+
+def export_model(model, scaler, output_path="mtl_emissions_model.pt"):
+    torch.save({"model": model.state_dict()}, output_path)
+    logger.info("Exported model to: %s", output_path)
     import joblib
 
-    scaler_path = output_path.replace(".h5", "_scaler.pkl")
+    scaler_path = str(output_path).replace(".pt", "_scaler.pkl")
     joblib.dump(scaler, scaler_path)
-    logger.info(f"Exported scaler to: {scaler_path}")
+    logger.info("Exported scaler to: %s", scaler_path)
+
+
+def _synthetic_plants(n: int = 400) -> pd.DataFrame:
+    rng = np.random.default_rng(RANDOM_STATE)
+    cap = rng.uniform(50, 800, n)
+    gen = cap * rng.uniform(0.2, 0.9, n) * 8760
+    heat = gen * rng.uniform(8, 12, n)
+    co2 = gen * rng.uniform(0.4, 1.2, n)
+    nox = gen * rng.uniform(0.001, 0.01, n)
+    so2 = gen * rng.uniform(0.0005, 0.005, n)
+    return pd.DataFrame(
+        {
+            "data_year": TARGET_YEAR,
+            "Plant annual net generation (MWh)": gen,
+            "Plant annual CO2 emissions (tons)": co2,
+            "Plant nameplate capacity (MW)": cap,
+            "Plant annual heat input (MMBtu)": heat,
+            "Plant annual NOx emissions (tons)": nox,
+            "Plant annual SO2 emissions (tons)": so2,
+        }
+    )
 
 
 def load_and_prepare_data(year):
     """Load and prepare features for multi-task learning"""
     logger.info(f"Loading {year} data...")
-    plants = pd.read_parquet(DATA_PATH)
+    if DATA_PATH.exists():
+        plants = pd.read_parquet(DATA_PATH)
+    else:
+        logger.warning("Parquet not found; using synthetic plant data")
+        plants = _synthetic_plants()
     df = plants[plants["data_year"] == year].copy()
     gen = pd.to_numeric(df["Plant annual net generation (MWh)"], errors="coerce")
     co2 = pd.to_numeric(df["Plant annual CO2 emissions (tons)"], errors="coerce")
@@ -198,14 +246,9 @@ def load_and_prepare_data(year):
 def train_mtl_model(X_train, X_test, y_train, y_test):
     """Train multi-task learning model"""
     logger.info("\n[1/2] Training Multi-Task Learning Model...")
-    input_dim = X_train.shape[1]
-    model = build_mtl_model(input_dim)
-    history = _train_torch(
-        model,
-        X_train,
-        {"co2_output": y_train["co2"], "nox_output": y_train["nox"], "so2_output": y_train["so2"]},
-    )
-    y_pred_co2, y_pred_nox, y_pred_so2 = _predict_torch(model, X_test, verbose=0)
+    model = MultiTaskMLP(X_train.shape[1])
+    _train_mtl(model, X_train, y_train, epochs=15)
+    y_pred_co2, y_pred_nox, y_pred_so2 = _predict_mtl(model, X_test)
     mae_co2 = mean_absolute_error(y_test["co2"], y_pred_co2)
     mae_nox = mean_absolute_error(y_test["nox"], y_pred_nox)
     mae_so2 = mean_absolute_error(y_test["so2"], y_pred_so2)
@@ -215,7 +258,7 @@ def train_mtl_model(X_train, X_test, y_train, y_test):
     logger.info(f"  Average MAE: {(mae_co2 + mae_nox + mae_so2) / 3:.4f}")
     return {
         "model": model,
-        "history": history,
+        "history": {},
         "predictions": {
             "co2": y_pred_co2.flatten(),
             "nox": y_pred_nox.flatten(),
@@ -232,9 +275,9 @@ def train_single_task_models(X_train, X_test, y_train, y_test):
     results = {}
     for task in ["co2", "nox", "so2"]:
         logger.info(f"  Training {task.upper()} model...")
-        model = build_single_task_model(input_dim)
-        _train_torch(model, X_train, y_train[task])
-        y_pred = _predict_torch(model, X_test, verbose=0).flatten()
+        model = SingleTaskMLP(input_dim)
+        _train_torch(model, X_train, y_train[task], epochs=15)
+        y_pred = _predict_torch(model, X_test).flatten()
         mae = mean_absolute_error(y_test[task], y_pred)
         logger.info(f"    MAE: {mae:.4f}")
         results[task] = {"model": model, "predictions": y_pred, "mae": mae}
@@ -369,7 +412,18 @@ def visualize_results(mtl_results, single_results, y_test, corr_matrix, plot: bo
 
 
 def main_step_001() -> None:
-    global X, corr_matrix, y
+    global \
+        X, \
+        X_test, \
+        X_train, \
+        corr_matrix, \
+        y, \
+        y_co2_test, \
+        y_co2_train, \
+        y_nox_test, \
+        y_nox_train, \
+        y_so2_test, \
+        y_so2_train
     "Main execution"
     logger.info("MULTI-TASK LEARNING - PRODUCTION RUN")
     df = load_and_prepare_data(TARGET_YEAR)
@@ -396,25 +450,13 @@ def main_step_001() -> None:
     _, _, y_nox_train, y_nox_test = train_test_split(
         X, y["nox"], test_size=TEST_SIZE, random_state=RANDOM_STATE
     )
-
-
-def main_step_002() -> None:
-    global \
-        X, \
-        X_test, \
-        X_train, \
-        corr_matrix, \
-        mtl_results, \
-        scaler, \
-        single_results, \
-        y, \
-        y_co2_test, \
-        y_co2_train, \
-        y_nox_test, \
-        y_nox_train
     _, _, y_so2_train, y_so2_test = train_test_split(
         X, y["so2"], test_size=TEST_SIZE, random_state=RANDOM_STATE
     )
+
+
+def main_step_002() -> None:
+    global corr_matrix, mtl_results, scaler, single_results, y_co2_test, y_co2_train, y_nox_test, y_nox_train, y_so2_test, y_so2_train
     y_train = {"co2": y_co2_train, "nox": y_nox_train, "so2": y_so2_train}
     y_test = {"co2": y_co2_test, "nox": y_nox_test, "so2": y_so2_test}
     scaler = StandardScaler()
